@@ -1,0 +1,18 @@
+OASISFormat: 0.1
+Name: dummy-test
+Version: 0.0.1
+Synopsis: do nothing
+Authors: Raphaël Proust
+LicenseFile: None
+License: PD
+
+Executable foo
+  Path: src-foo
+  CompiledObject: byte
+  MainIs: foo.ml
+
+Executable bar
+  Path: src-bar
+  CompiledObject: native
+  MainIs: main.ml
+
