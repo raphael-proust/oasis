@@ -6,13 +6,22 @@ Authors: Raphaël Proust
 LicenseFile: None
 License: PD
 
-Executable foo
-  Path: src-foo
+Executable "foo"
+  Path: src/foo
   CompiledObject: byte
   MainIs: foo.ml
+  BuildDepends: baz
 
-Executable bar
-  Path: src-bar
+Executable "bar"
+  Path: src/bar
   CompiledObject: native
   MainIs: main.ml
+  BuildDepends: baz
+
+Library "baz"
+  Path: src/baz
+  Modules: B,
+           A,
+           Z
+  CompiledObject: Best
 

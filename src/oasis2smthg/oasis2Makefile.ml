@@ -13,10 +13,7 @@ let o = OASISAst.to_package
 
 let section s = let open OASISTypes in
 	match s with
-	| Library (cs, bs, lib) -> assert false
-	| Object (cs, bs, o) -> assert false
-	| Executable (cs, bs, e) -> begin
-		let path = bs.bs_path in
+	| Library (cs, bs, lib) -> begin
 		let compiled_object = bs.bs_compiled_object in
 		let internal_depends, findlib_depends =
 			List.fold_left
@@ -50,11 +47,57 @@ let section s = let open OASISTypes in
 			) ::
 			[] (*TODO: includes and such*)
 		in
-		let arg = Printf.sprintf "%s/%s" path e.exec_main_is in
+		let modules = lib.lib_modules @ lib.lib_internal_modules in
+		let rule = Printf.sprintf "%s %s" builder (String.concat " " args) in
+
+		(*TODO: lib_pack*)
+		(bs.bs_path,
+		 [(cs.cs_name, internal_depends @ modules, [])]
+		)
+	end
+
+	| Object (cs, bs, o) -> assert false
+	| Executable (cs, bs, e) -> begin
+		let compiled_object = bs.bs_compiled_object in
+		let internal_depends, findlib_depends =
+			List.fold_left
+				(fun (id, fd) d -> match d with
+					| FindlibPackage (f, _) -> (id, f :: fd)
+					| InternalLibrary n -> (n :: id, fd)
+				)
+				([], [])
+				bs.bs_build_depends
+		in
+		let internal_tool, external_tool =
+			List.fold_left
+				(fun (it, et) t -> match t with
+					| ExternalTool n -> (it, n :: et)
+					| InternalExecutable n -> (n :: it, et)
+				)
+				([], [])
+				bs.bs_build_tools
+		in
+		let byteopt = OASISExpr.choose idstr bs.bs_byteopt in
+		let nativeopt = OASISExpr.choose idstr bs.bs_nativeopt in
+
+		let builder = match compiled_object with
+		| Byte -> "ocamlc"
+		| Native | Best -> "ocamlopt"
+		in
+		let args =
+			(match compiled_object with
+				| Byte -> String.concat " " byteopt
+				| Native | Best -> String.concat " " nativeopt
+			) ::
+			[] (*TODO: includes and such*)
+		in
+		let arg = Printf.sprintf "%s" e.exec_main_is in
 		let rule = Printf.sprintf "%s %s %s"
 			builder (String.concat " " args) arg in
 
-		(cs.cs_name, internal_depends, [rule])
+		(bs.bs_path,
+		 [(cs.cs_name, internal_depends, [rule])]
+		)
 	end
 	| Flag (cs, f) -> assert false
 	| SrcRepo (cs, sr) -> assert false
@@ -91,13 +134,21 @@ let package2makefile
 	]
 	in
 	let sections = List.map section sections in
-	List.iter (fun (s, v) -> pf "%s=%s\n" s v)  variables ;
-	pf "\n";
 	List.iter
-		(fun (prereq, depends, cmds) ->
-			pf "%s: %s\n\t%s\n" prereq
-				(String.concat " " depends)
-				(String.concat "\n\t" cmds)
+		(fun (path, rules) ->
+			pf "%s/Makefile:\n\n" path;
+			List.iter (fun (s, v) -> pf "%s=%s\n" s v)  variables ;
+			pf "\n";
+			List.iter
+				(fun (prereq, depends, cmds) ->
+					pf "%s: %s\n%s\n" prereq
+						(String.concat " " depends)
+						(match cmds with
+							| [] -> ""
+							| cmds -> "\t" ^ String.concat "\n\t" cmds)
+				)
+				rules;
+			pf "\n"
 		)
 		sections
 
